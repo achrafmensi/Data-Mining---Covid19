@@ -1,0 +1,238 @@
+---
+title: "Projet DM"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+db=read.csv("DB.csv", header=TRUE, row.names = 1, sep=";", dec=",")
+db$Increase <- as.factor(db$Increase)
+library(FactoMineR)
+Res=PCA(db[,-c(11)], quali.sup = 4)
+
+db4 <- db[,-c(2,3 )]
+
+full_model <- glm(Increase~., db4, family="binomial");
+library(MASS)
+library("stats")
+library("datasets")
+library(ROCR)
+
+
+backward_model <- stepAIC(full_model,~., trace = TRUE, data = db4, direction = "backward");
+prev_prob <- predict(backward_model, newdata = db4, type="response");
+pred = prediction (prev_prob, db4$Increase);
+```
+Etudes
+=====================================     
+
+Column {data-width=650}
+-----------------------------------------------------------------------
+
+
+### La corrélation entre les variables
+    
+```{r}
+library(corrgram)
+X=data.frame(scale(db[,-c(4,11)]))
+c=corrgram(X , order=TRUE,  lower.panel = panel.conf)
+
+```
+
+Column {data-width=350}
+-----------------------------------------------------------------------
+
+### STR
+
+```{r}
+str(db)
+```
+
+### SUM
+
+```{r}
+summary(db)
+```
+
+
+PCA
+===================================== 
+
+Column {data-width=350}
+-----------------------------------------------------------------------
+
+### Variables 
+    
+```{r, fig.width=10, fig.height=7}
+library(factoextra)
+fviz_pca_var(Res, col.var = "cos2" , repel=TRUE)+scale_color_gradient2(low = "red", mid = "yellow", high = "green", midpoint =0.5)
+```
+
+### Indivduals 
+
+```{r}
+library(factoextra)
+fviz_pca_ind(Res, habillage = "Continent")
+```
+
+Column {data-width=350}
+-----------------------------------------------------------------------
+
+### Chart 3
+    
+```{r}
+fviz_pca_ind(Res, habillage = "Continent", repel=TRUE)
+
+```
+
+### Screeplot
+    
+```{r}
+library(factoextra)
+fviz_screeplot(Res, barfill="orange", linecolor="blue")
+```
+
+
+
+```{r , include=FALSE}
+db1=db
+db2=db
+d=dist(scale(db1[,-c(4,11)]), "euclidean")
+library(NbClust)
+nb1<- NbClust(scale(db[,-c(4,11)]), min.nc = 2, max.nc = 15, method = "ward.D" )
+db3=db
+cl1 = kmeans(scale(db[,-c(4,11)]), centers = 3)
+cl1$cluster
+db3$cluster.kmeans = as.factor(cl1$cluster)
+```
+
+Classification 
+=====================================     
+
+Column {data-width=350}
+-----------------------------------------------------------------------
+
+
+### Number of Clusters
+    
+```{r}
+barplot(table(nb1$Best.nc[1, ]), xlab = "Number of Clusters", ylab = "Number of Criteria",  main = "Number of Clusters Chosen by 26 Criteria") 
+```
+
+```{r}
+
+hca=hclust(d,method = "ward.D")
+plot(hca, hang = -1)
+```
+
+### Coude - CAH
+
+```{r}
+
+library(rbokeh)
+figure(width = NULL, height = NULL) %>%
+  ly_points(Deaths, Recovered, data = db, color = Continent)
+
+```
+
+Column {data-width=350}
+-----------------------------------------------------------------------
+
+### Plot
+
+```{r}
+db3=db
+cl1 = kmeans(scale(db[,-c(4,11)]), centers = 3)
+db3$cluster.kmeans = as.factor(cl1$cluster)
+plot(db3[,2:3],col=cl1$cluster)
+```
+
+Regression logistique 
+=====================================     
+Column {data-width=350}
+-----------------------------------------------------------------------
+
+
+### Increase ~ Smokers 
+```{r}
+db4 <- db[,-c(2,3 )]
+library(ggplot2)
+ggplot( db4, aes(Increase, Smokers)) + geom_boxplot(aes(fill=Increase))
+
+```
+
+### Increase ~ Beds 
+```{r}
+ggplot( db4, aes(Increase, Beds)) + geom_boxplot(aes(fill=Increase))
+```
+
+### Increase ~ Smokers+Doctors 
+```{r}
+ggplot( db4, aes(Increase, Smokers+Doctors)) + geom_boxplot(aes(fill=Increase))
+```
+
+Prediction 
+=====================================     
+
+Column {data-width=650}
+-----------------------------------------------------------------------
+
+
+### PredPlot
+
+```{r}
+perf = performance( pred, "tpr" ,"fpr" );
+plot( perf, colorize=TRUE )
+```
+
+Arbre de décision 
+=====================================     
+
+Column {data-width=650}
+-----------------------------------------------------------------------
+
+
+### Tree
+
+```{r}
+db5=db[,4:11]
+levels(db5$Increase) <- c("Yes","No")
+library(rpart)
+library(rpart.plot)
+Tree <- rpart(Increase~.,data=db5)
+rpart.plot(Tree)
+
+```
+
+### Plotcp Tree
+
+```{r}
+plotcp(Tree)
+
+```
+
+Column {data-width=650}
+-----------------------------------------------------------------------
+### Arbre de décision optimal
+
+```{r}
+optimal=Tree$cptable[which.min(Tree$cptable[,4]),1]
+
+Tree_opt <- rpart(Increase~., data=db5, cp=optimal,
+                  control=rpart.control(minsplit = 9))
+rpart.plot(Tree_opt)
+```
+
+Map
+=====================================     
+
+Column {data-width=650}
+-----------------------------------------------------------------------
+
+### Map 
+
+
+
+
